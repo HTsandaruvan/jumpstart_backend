@@ -1,0 +1,183 @@
+package com.lithan.jumpstart.controller;
+
+import com.lithan.jumpstart.entity.Product;
+import com.lithan.jumpstart.entity.User;
+import com.lithan.jumpstart.exception.ProductNotFoundException;
+import com.lithan.jumpstart.payload.request.CreateCategoryRequest;
+import com.lithan.jumpstart.payload.request.ProductRequest;
+import com.lithan.jumpstart.payload.request.UserRegisterRequest;
+import com.lithan.jumpstart.payload.response.BaseResponse;
+import com.lithan.jumpstart.service.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.math.BigDecimal;
+
+@RestController
+@RequestMapping("/api/admin")
+public class AdminController {
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private CategoryService categoryService;
+
+    @Autowired
+    private ProductService productService;
+
+    @Autowired
+    private OrderService orderService;
+
+    @Autowired
+    private StatisticService statisticService;
+
+    @PostMapping("/create-category")
+    public ResponseEntity<?> createCategory(@RequestBody CreateCategoryRequest request) {
+        final BaseResponse<?> response = categoryService.saveCategory(userService.getCurrentUser().getEmail(), request);
+        if (response.getCode() == 200) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.status(403).body(response);
+    }
+
+    @PostMapping("/add-product")
+    public ResponseEntity<?> addProduct(
+            @RequestParam("image") MultipartFile image,
+            @RequestParam("productName") String productName,
+            @RequestParam("slug") String slug,
+            @RequestParam("description") String description,
+            @RequestParam("price") BigDecimal price,
+            @RequestParam("oldPrice") BigDecimal oldPrice,
+            @RequestParam("stock") Long stock,
+            @RequestParam("weight") Double weight,
+            @RequestParam("categoryId") Long categoryId) {
+        String currentUserEmail = userService.getCurrentUser().getEmail();
+        ProductRequest request = new ProductRequest();
+        request.setProductName(productName);
+        request.setSlug(slug);
+        request.setDescription(description);
+        request.setPrice(price);
+        request.setOldPrice(oldPrice);
+        request.setStock(stock);
+        request.setWeight(weight);
+        request.setCategoryId(categoryId);
+        final BaseResponse<?> response = productService.saveProduct(currentUserEmail, image, request);
+        if (response.getCode() == 200) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @PutMapping("/update-product/{slugPath}")
+    public ResponseEntity<?> updateProduct(
+            @PathVariable("slugPath") String slugPath,
+            @RequestParam(value = "image", required = false) MultipartFile image,
+            @RequestParam("productName") String productName,
+            @RequestParam("slug") String newSlug,
+            @RequestParam("description") String description,
+            @RequestParam("price") BigDecimal price,
+            @RequestParam("oldPrice") BigDecimal oldPrice,
+            @RequestParam("stock") Long stock,
+            @RequestParam("weight") Double weight,
+            @RequestParam("categoryId") Long categoryId) {
+        String currentUserEmail = userService.getCurrentUser().getEmail();
+
+        Long productId;
+        ProductRequest request = new ProductRequest();
+        try {
+            productId = productService.getProductDetailsBySlug(slugPath).getProductId();
+            request.setProductId(productId);
+            request.setProductName(productName);
+            request.setSlug(newSlug);
+            request.setDescription(description);
+            request.setPrice(price);
+            request.setOldPrice(oldPrice);
+            request.setStock(stock);
+            request.setWeight(weight);
+            request.setCategoryId(categoryId);
+        } catch (ProductNotFoundException e) {
+            return ResponseEntity.status(404).body(BaseResponse.notFound(e.getMessage()));
+        }
+
+        final BaseResponse<?> response = productService.saveProduct(currentUserEmail, image, request);
+
+        if (response.getCode() == 200) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @DeleteMapping("/delete-product/{productId}")
+    public ResponseEntity<?> deleteProductByProductId(@PathVariable("productId") String productIdStr) {
+        Long productId = Long.parseLong(productIdStr);
+        String currentUserEmail = userService.getCurrentUser().getEmail();
+        BaseResponse<?> response = productService.deleteProductByProductId(currentUserEmail, productId);
+        if (response.getCode() == 200) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @GetMapping("/orders")
+    public ResponseEntity<?> getAllOrders(
+            @RequestParam(value = "filter", required = false) String filter,
+            @RequestParam(value = "order", required = false) String orderBy) {
+        User currentUser = userService.getCurrentUser();
+        if (filter == null) {
+            filter = "";
+        }
+        if (orderBy == null) {
+            orderBy = "";
+        }
+        BaseResponse<?> response = orderService.getAllOrders(currentUser, filter, orderBy);
+        if (response.getCode() == 200) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @GetMapping("/complete-order/{orderIdStr}")
+    public ResponseEntity<?> completeOrder(@PathVariable(value = "orderIdStr") String orderIdStr) {
+        User currentUser = userService.getCurrentUser();
+        Long orderId = Long.parseLong(orderIdStr);
+        BaseResponse<?> response = orderService.completeOrder(currentUser, orderId);
+        if (response.getCode() == 200) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @GetMapping("/cancel-order/{orderIdStr}")
+    public ResponseEntity<?> cancelOrder(@PathVariable(value = "orderIdStr") String orderIdStr) {
+        User currentUser = userService.getCurrentUser();
+        Long orderId = Long.parseLong(orderIdStr);
+        BaseResponse<?> response = orderService.cancelOrder(currentUser, orderId);
+        if (response.getCode() == 200) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @GetMapping("/customers")
+    public ResponseEntity<?> showAllUsers() {
+        User currentUser = userService.getCurrentUser();
+        BaseResponse<?> response = userService.showAllUsers(currentUser);
+        if (response.getCode() == 200) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @GetMapping("/statistics")
+    public ResponseEntity<?> showAllStatistics() {
+        User currentUser = userService.getCurrentUser();
+        BaseResponse<?> response = statisticService.getAllStats(currentUser);
+        if (response.getCode() == 200) {
+            return ResponseEntity.ok(response);
+        }
+		return ResponseEntity.badRequest().body(response);
+	}
+}

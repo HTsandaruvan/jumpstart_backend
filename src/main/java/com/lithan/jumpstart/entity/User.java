@@ -1,0 +1,53 @@
+package com.lithan.jumpstart.entity;
+
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.lithan.jumpstart.constraint.ERole;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import javax.persistence.*;
+import java.util.Date;
+import java.util.List;
+
+@Entity
+@Table(uniqueConstraints = {
+        @UniqueConstraint(columnNames = "email")
+})
+@Setter
+@Getter
+@NoArgsConstructor
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
+    private Long userId;
+
+    private String email;
+
+    @JsonIgnore
+    @Column(unique = true)
+    private String uuid;
+
+    @JsonIgnore
+    private String password;
+
+    private Date registeredAt;
+
+    @Enumerated(EnumType.STRING)
+    private ERole role;
+
+    private Boolean isActive;
+
+    @JsonBackReference
+    @OneToOne(cascade = CascadeType.ALL, mappedBy = "user")
+    private UserProfile userProfile;
+
+    @JsonBackReference
+    @OneToOne(cascade = CascadeType.ALL, mappedBy = "user")
+    private Cart cart;
+
+    @JsonBackReference
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "user")
+    private List<Order> orders;
+}
